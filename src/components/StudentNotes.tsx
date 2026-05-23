@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '@/contexts/AppContext';
 import type { RiasecCategory, RiasecScores } from '@/data/questions';
-import { getStudentNotes, getAptitudeTestResult, getRegistration, sendAptitudeReportToWhatsapp } from '@/api/educine';
+import { getStudentNotes, getAptitudeTestResult, getRegistration } from '@/api/educine';
 import type { CounselorNote } from '@/api/educine';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AptitudeTopProfiles } from './AptitudeTopProfiles';
 import { generateResultsPdfBlob } from './ResultsPdfDocument';
 import { CounselorNoteCard } from '@/components/CounselorNoteCard';
-import { BookOpen, User, CheckCircle2, AlertTriangle, Download, Languages, MessageCircle } from 'lucide-react';
+import { BookOpen, User, CheckCircle2, AlertTriangle, Download, Languages } from 'lucide-react';
 import { parseAptitudeResult } from '@/lib/riasec';
 
 export function StudentNotes() {
@@ -23,10 +23,6 @@ export function StudentNotes() {
   const [error, setError] = useState('');
   const [showReattemptWarning, setShowReattemptWarning] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
-  const [sendSuccess, setSendSuccess] = useState('');
-  const [sendError, setSendError] = useState('');
-
   useEffect(() => {
     if (!participantId) return;
 
@@ -70,33 +66,6 @@ export function StudentNotes() {
       URL.revokeObjectURL(url);
     } finally {
       setDownloading(false);
-    }
-  };
-
-  const handleSendWhatsapp = async () => {
-    if (!registration || !aptitude || !participantId) {
-      return;
-    }
-
-    setSendError('');
-    setSendSuccess('');
-    setSendingWhatsapp(true);
-    try {
-      const blob = await generateResultsPdfBlob({
-        registration,
-        scores: aptitude.scores,
-        topCategories: aptitude.topCategories,
-        language,
-      });
-      const filename = `RIASEC-Result-${registration.name.replace(/\s+/g, '_')}.pdf`;
-      await sendAptitudeReportToWhatsapp(participantId, blob, filename);
-      setSendSuccess(`PDF report sent to ${registration.mobile} on WhatsApp.`);
-    } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setSendError(message ?? 'Could not send the PDF to WhatsApp. Please try again.');
-    } finally {
-      setSendingWhatsapp(false);
     }
   };
 
@@ -166,25 +135,6 @@ export function StudentNotes() {
             <Download className="h-4 w-4" />
             Download PDF Report
           </Button>
-          <Button
-            onClick={handleSendWhatsapp}
-            loading={sendingWhatsapp}
-            variant="ghost"
-            className="w-full"
-          >
-            <MessageCircle className="h-4 w-4" />
-            Send to WhatsApp
-          </Button>
-          {sendSuccess && (
-            <p className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-              {sendSuccess}
-            </p>
-          )}
-          {sendError && (
-            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {sendError}
-            </p>
-          )}
         </div>
       )}
 

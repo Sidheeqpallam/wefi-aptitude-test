@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '@/contexts/AppContext';
 import { CATEGORY_LABELS, CATEGORY_MAX_SCORES, getScorePercentage, getTopCategories } from '@/data/questions';
@@ -6,7 +6,7 @@ import type { RiasecCategory } from '@/data/questions';
 import { AptitudeTopProfiles } from './AptitudeTopProfiles';
 import { generateResultsPdfBlob } from './ResultsPdfDocument';
 import { Button } from '@/components/ui/Button';
-import { RefreshCw, User, ArrowRight, MessageCircle } from 'lucide-react';
+import { RefreshCw, User, ArrowRight } from 'lucide-react';
 import { getAptitudeTestResult, getRegistration, sendAptitudeReportToWhatsapp } from '@/api/educine';
 import { parseAptitudeResult } from '@/lib/riasec';
 import { getProductRouteConfig } from '@/lib/productParams';
@@ -41,8 +41,10 @@ export function Results() {
   const [downloading, setDownloading] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [sendSuccess, setSendSuccess] = useState('');
   const [sendError, setSendError] = useState('');
+  const hasAutoSentWhatsapp = useRef(false);
 
   useEffect(() => {
     if (!participantId) {
@@ -51,6 +53,7 @@ export function Results() {
 
     let isMounted = true;
     setLoading(true);
+    setLoadError('');
 
     Promise.all([
       registration?.id === participantId ? Promise.resolve(registration) : getRegistration(participantId),
@@ -63,11 +66,23 @@ export function Results() {
           setRegistration(participant);
         }
 
-        if (!scores && result?.result) {
-          const parsed = parseAptitudeResult(result.result);
+        const resultString = result?.result ?? participant?.aptitudeResult ?? null;
+
+        if (!scores && resultString) {
+          const parsed = parseAptitudeResult(resultString);
           if (parsed) {
             setScores(parsed.scores, parsed.topCategories);
+            return;
           }
+        }
+
+        if (!scores && !resultString) {
+          setLoadError('Could not find a saved result for this participant.');
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setLoadError('Could not load the saved result. Please try again.');
         }
       })
       .finally(() => {
@@ -81,18 +96,25 @@ export function Results() {
     };
   }, [participantId, registration, scores, setRegistration, setScores]);
 
-  if (!scores || !registration) return null;
-
-  const top3 = topCategories.slice(0, 3) as RiasecCategory[];
-  const rankedCategories = getTopCategories(scores);
+  const rankedCategories = scores ? getTopCategories(scores) : [];
+  const resolvedTopCategories =
+    scores && topCategories.length > 0 ? topCategories : (rankedCategories as RiasecCategory[]);
+  const top3 = resolvedTopCategories.slice(0, 3) as RiasecCategory[];
+  const participantName = registration?.name ?? 'Participant';
+  const participantMobile = registration?.mobile ?? 'the registered number';
+  const shouldAutoSendWhatsapp =
+    (location.state as { autoSendWhatsapp?: boolean } | null)?.autoSendWhatsapp === true;
 
   const generatePdfBlob = async (): Promise<Blob> =>
-    generateResultsPdfBlob({
-      registration,
-      scores,
-      topCategories: topCategories as RiasecCategory[],
-      language,
-    });
+    registration && scores
+      ?
+      generateResultsPdfBlob({
+        registration,
+        scores,
+        topCategories: resolvedTopCategories as RiasecCategory[],
+        language,
+      })
+      : Promise.reject(new Error('Result data is not loaded yet.'));
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -101,7 +123,7 @@ export function Results() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `RIASEC-Result-${registration.name.replace(/\s+/g, '_')}.pdf`;
+      link.download = `RIASEC-Result-${participantName.replace(/\s+/g, '_')}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -119,9 +141,9 @@ export function Results() {
     setSendingWhatsapp(true);
     try {
       const blob = await generatePdfBlob();
-      const filename = `RIASEC-Result-${registration.name.replace(/\s+/g, '_')}.pdf`;
+      const filename = `RIASEC-Result-${participantName.replace(/\s+/g, '_')}.pdf`;
       await sendAptitudeReportToWhatsapp(participantId, blob, filename);
-      setSendSuccess(`PDF report sent to ${registration.mobile} on WhatsApp.`);
+      setSendSuccess(`PDF report sent to ${participantMobile} on WhatsApp.`);
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -131,7 +153,60 @@ export function Results() {
     }
   };
 
+  useEffect(() => {
+    if (
+      !participantId ||
+      !registration ||
+      !scores ||
+      !shouldAutoSendWhatsapp ||
+      hasAutoSentWhatsapp.current ||
+      sendingWhatsapp
+    ) {
+      return;
+    }
+
+    hasAutoSentWhatsapp.current = true;
+    navigate(`${location.pathname}${location.search}`, { replace: true });
+    void handleSendWhatsapp();
+  }, [
+    location.pathname,
+    location.search,
+    navigate,
+    participantId,
+    registration,
+    scores,
+    sendingWhatsapp,
+    shouldAutoSendWhatsapp,
+  ]);
+
   const ml = language === 'malayalam';
+
+  if (loading && (!scores || !registration)) {
+    return (
+      <div className="animate-fade-in space-y-5">
+        <p className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+          Loading result...
+        </p>
+      </div>
+    );
+  }
+
+  if (!scores || !registration) {
+    return (
+      <div className="animate-fade-in space-y-5">
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+          {loadError || 'Could not load the saved result. Please try again.'}
+        </p>
+        <button
+          onClick={() => navigate(`/register${location.search}`)}
+          className="flex w-full items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Go to registration
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in space-y-5">
@@ -184,10 +259,6 @@ export function Results() {
       <div className="grid gap-3">
         <Button onClick={handleDownload} loading={downloading} variant="primary" className="w-full">
           Download PDF
-        </Button>
-        <Button onClick={handleSendWhatsapp} loading={sendingWhatsapp} variant="ghost" className="w-full">
-          <MessageCircle className="h-4 w-4" />
-          Send to WhatsApp
         </Button>
         {config.showQr && participantId && (
           <Link

@@ -29,6 +29,18 @@ export function AptitudeTest() {
   const [loadingRegistration, setLoadingRegistration] = useState(false);
 
   useEffect(() => {
+    setAnswers((prev) => {
+      if (Object.keys(prev).length > 0) {
+        return prev;
+      }
+
+      return Object.fromEntries(
+        QUESTIONS.map((question) => [question.id, Math.floor(Math.random() * 5) + 1]),
+      );
+    });
+  }, []);
+
+  useEffect(() => {
     if (!participantId || registration?.id === participantId) {
       return;
     }
@@ -77,7 +89,9 @@ export function AptitudeTest() {
       await saveTestResult(participantId, resultStr);
 
       setScores(scores, top as RiasecCategory[]);
-      navigate(`/results/${participantId}${location.search}`);
+      navigate(`/results/${participantId}${location.search}`, {
+        state: { autoSendWhatsapp: true },
+      });
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
