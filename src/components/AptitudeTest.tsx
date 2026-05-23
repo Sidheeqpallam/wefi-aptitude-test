@@ -28,17 +28,17 @@ export function AptitudeTest() {
   const [error, setError] = useState('');
   const [loadingRegistration, setLoadingRegistration] = useState(false);
 
-  useEffect(() => {
-    setAnswers((prev) => {
-      if (Object.keys(prev).length > 0) {
-        return prev;
-      }
+  // useEffect(() => {
+  //   setAnswers((prev) => {
+  //     if (Object.keys(prev).length > 0) {
+  //       return prev;
+  //     }
 
-      return Object.fromEntries(
-        QUESTIONS.map((question) => [question.id, Math.floor(Math.random() * 5) + 1]),
-      );
-    });
-  }, []);
+  //     return Object.fromEntries(
+  //       QUESTIONS.map((question) => [question.id, Math.floor(Math.random() * 5) + 1]),
+  //     );
+  //   });
+  // }, []);
 
   useEffect(() => {
     if (!participantId || registration?.id === participantId) {
