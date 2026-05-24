@@ -1,15 +1,47 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Loader2, Phone } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/CounselorAuthContext';
 import { SsfLogo } from '@/components/SsfLogo';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { COUNSELOR_AUTH_ERROR_KEY } from '@/lib/counselorHttp';
+import { HttpError } from '@/lib/httpClient';
+
+const getLoginErrorMessage = (error: unknown) => {
+  if (error instanceof HttpError) {
+    if (error.status === 404) {
+      return 'No account found with this mobile number. Please check and try again.';
+    }
+
+    if (error.status === 403) {
+      return 'Account inactive. Please contact support.';
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return 'Login failed. Please check your mobile number and try again.';
+};
 
 export default function Login() {
   const [mobile, setMobile] = useState('');
   const [error, setError] = useState('');
   const { login, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const authError = sessionStorage.getItem(COUNSELOR_AUTH_ERROR_KEY);
+    if (!authError) {
+      return;
+    }
+
+    setError(authError);
+    sessionStorage.removeItem(COUNSELOR_AUTH_ERROR_KEY);
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -27,8 +59,9 @@ export default function Login() {
 
     try {
       await login(mobile.trim());
-    } catch {
-      setError('Login failed. Please check your mobile number and try again.');
+      navigate('/counselor/dashboard', { replace: true });
+    } catch (error) {
+      setError(getLoginErrorMessage(error));
     }
   };
 

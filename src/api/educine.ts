@@ -1,9 +1,14 @@
-import axios from 'axios';
+import { API_BASE_URL } from '@/lib/apiConfig';
+import { createHttpClient } from '@/lib/httpClient';
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? '/api',
-  headers: { 'Content-Type': 'application/json' },
+const api = createHttpClient({
+  baseURL: API_BASE_URL,
+  defaultHeaders: { 'Content-Type': 'application/json' },
 });
+
+interface ApiEnvelope<T> {
+  data: T;
+}
 
 export interface RegistrationCheck {
   id: string;
@@ -64,14 +69,14 @@ export interface ParticipantRegistrationResponse {
 export async function registerParticipant(
   payload: ParticipantRegistrationPayload,
 ): Promise<ParticipantRegistrationResponse> {
-  const { data } = await api.post('/career-aptitude', payload);
+  const { data } = await api.post<ApiEnvelope<ParticipantRegistrationResponse>>('/career-aptitude', payload);
   return data.data as ParticipantRegistrationResponse;
 }
 
 export async function checkRegistration(
   mobile: string,
 ): Promise<RegistrationCheck> {
-  const { data } = await api.get('/career-aptitude/check-by-phone', {
+  const { data } = await api.get<ApiEnvelope<RegistrationCheck>>('/career-aptitude/check-by-phone', {
     params: { mobile },
   });
   return data.data as RegistrationCheck;
@@ -79,7 +84,7 @@ export async function checkRegistration(
 
 // ─── Get Full Registration ────────────────────────────────────────────────────
 export async function getRegistration(id: string): Promise<RegistrationDetail> {
-  const { data } = await api.get(`/career-aptitude/${id}`);
+  const { data } = await api.get<ApiEnvelope<RegistrationDetail>>(`/career-aptitude/${id}`);
   return data.data as RegistrationDetail;
 }
 
@@ -87,7 +92,7 @@ export async function submitAptitudeTest(
   participantId: string,
   aptitudeTest: AptitudeAnswer[],
 ): Promise<{ id: string }> {
-  const { data } = await api.post('/career-aptitude/aptitude', {
+  const { data } = await api.post<ApiEnvelope<{ id: string }>>('/career-aptitude/aptitude', {
     participantId,
     aptitudeTest,
   });
@@ -105,7 +110,7 @@ export async function getAptitudeTestResult(
   participantId: string,
 ): Promise<{ result: string } | null> {
   try {
-    const { data } = await api.get(`/career-aptitude/aptitude/${participantId}/result`);
+    const { data } = await api.get<ApiEnvelope<{ result: string }>>(`/career-aptitude/aptitude/${participantId}/result`);
     return data.data as { result: string };
   } catch {
     return null;
@@ -119,16 +124,11 @@ export async function sendAptitudeReportToWhatsapp(
 ): Promise<void> {
   const formData = new FormData();
   formData.append('file', file, filename);
-
-  await api.post(`/career-aptitude/aptitude/${participantId}/send-whatsapp`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  await api.post(`/career-aptitude/aptitude/${participantId}/send-whatsapp`, formData);
 }
 
 export async function counselorLogin(mobile: string): Promise<{ id: string; name: string }> {
-  const { data } = await api.post('/educine/counselors/login', { mobile });
+  const { data } = await api.post<ApiEnvelope<{ id: string; name: string }>>('/educine/counselors/login', { mobile });
   return data.data as { id: string; name: string };
 }
 
@@ -138,14 +138,14 @@ export async function getStudentByMobile(
   const params: Record<string, string> = {};
   if (query.id) params.id = query.id;
   if (query.mobile) params.mobile = query.mobile;
-  const { data } = await api.get('/career-aptitude/counselors/participant', { params });
+  const { data } = await api.get<ApiEnvelope<RegistrationDetail & { aptitudeTest: unknown; result: string | null; notes: unknown[] }>>('/career-aptitude/counselors/participant', { params });
   return data.data;
 }
 
 export async function searchStudents(
   query: string,
 ): Promise<StudentSearchResult[]> {
-  const { data } = await api.post('/career-aptitude/counselors/search', {
+  const { data } = await api.post<ApiEnvelope<StudentSearchResult[]>>('/career-aptitude/counselors/search', {
     query,
   });
   return data.data as StudentSearchResult[];
@@ -172,7 +172,7 @@ export interface CounselorNote {
 }
 
 export async function getStudentNotes(participantId: string): Promise<CounselorNote[]> {
-  const { data } = await api.get(`/career-aptitude/counselors/notes/${participantId}`);
+  const { data } = await api.get<ApiEnvelope<CounselorNote[]>>(`/career-aptitude/counselors/notes/${participantId}`);
   return data.data as CounselorNote[];
 }
 
@@ -180,7 +180,7 @@ export async function findRegistrationByPhone(
   mobile: string,
 ): Promise<RegistrationCheck | null> {
   try {
-    const { data } = await api.get('/career-aptitude/check-by-phone', { params: { mobile } });
+    const { data } = await api.get<ApiEnvelope<RegistrationCheck>>('/career-aptitude/check-by-phone', { params: { mobile } });
     if (data?.data?.id) {
       return data.data as RegistrationCheck;
     }

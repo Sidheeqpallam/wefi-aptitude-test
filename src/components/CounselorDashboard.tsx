@@ -31,71 +31,6 @@ const formatDate = (dateString: string) => {
   });
 };
 
-const formatKey = (key: string) =>
-  key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()).trim();
-
-const parseArrayVal = (value: unknown): string[] | null => {
-  if (Array.isArray(value)) {
-    return value.map(String);
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (trimmed.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) {
-          return parsed.map(String);
-        }
-      } catch {
-        return null;
-      }
-    }
-  }
-
-  return null;
-};
-
-const isDateString = (value: string): boolean =>
-  /^\d{4}-\d{2}-\d{2}(T|\s|$)/.test(value.trim()) && !Number.isNaN(new Date(value).getTime());
-
-const formatDetailValue = (value: unknown): React.ReactNode => {
-  if (value === null || value === undefined) {
-    return '—';
-  }
-
-  const list = parseArrayVal(value);
-  if (list !== null) {
-    if (list.length === 0) {
-      return '—';
-    }
-
-    return (
-      <ul style={{ margin: '0.2rem 0 0', paddingLeft: '1.2rem' }}>
-        {list.map((item, index) => (
-          <li key={index} style={{ fontSize: '0.875rem', color: '#1e293b', lineHeight: 1.55 }}>
-            {item}
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  if (typeof value === 'object') {
-    return Object.entries(value).map(([key, nestedValue]) => `${formatKey(key)}: ${nestedValue}`).join(', ');
-  }
-
-  if (typeof value === 'string') {
-    if (isDateString(value)) {
-      const date = new Date(value);
-      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-    }
-    return value || '—';
-  }
-
-  return String(value) || '—';
-};
-
 export default function Dashboard() {
   const { counselor, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,7 +91,6 @@ export default function Dashboard() {
     try {
       const response = await http.post('/counselors/search', {
         query,
-        counselorId: counselor?.id,
       });
 
       const data = response.data?.data;
@@ -192,7 +126,6 @@ export default function Dashboard() {
     setIsSavingNote(true);
     try {
       await http.post('/counselors/notes', {
-        counselorId: counselor?.id,
         participantId: student.id,
         note: note.trim(),
       });
@@ -206,7 +139,6 @@ export default function Dashboard() {
         try {
           const fallback = await http.post('/counselors/search', {
             query: student.id,
-            counselorId: counselor?.id,
           });
           const data = fallback.data?.data;
           if (Array.isArray(data) && data.length) {
@@ -278,16 +210,6 @@ export default function Dashboard() {
 
   const resultLines = resultText
     ? resultText.split('\n').filter(Boolean)
-    : [];
-
-  const detailEntries = student
-    ? Object.entries(student).filter(
-      ([key, value]) =>
-        value !== null &&
-        value !== undefined &&
-        value !== '' &&
-        !['id', 'notes', 'aptitudeTest', 'result'].includes(key),
-    )
     : [];
 
   return (
