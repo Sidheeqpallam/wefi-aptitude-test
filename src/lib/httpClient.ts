@@ -136,7 +136,12 @@ const buildUrl = (baseURL: string, path: string, params?: Record<string, QueryPa
     : new URL(path.startsWith('/') ? `${baseURL}${path}` : `${baseURL}/${path}`, window.location.origin);
 
   appendQueryParams(rawUrl, params);
-  return isAbsoluteUrl(path) ? rawUrl.toString() : `${rawUrl.pathname}${rawUrl.search}`;
+
+  if (isAbsoluteUrl(path) || isAbsoluteUrl(baseURL)) {
+    return rawUrl.toString();
+  }
+
+  return `${rawUrl.pathname}${rawUrl.search}`;
 };
 
 export const createHttpClient = ({ baseURL, defaultHeaders = {}, timeout = 10000 }: CreateHttpClientOptions) => {
